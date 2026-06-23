@@ -1,0 +1,72 @@
+name: deploy
+
+# Reutilizável: chamado pelo ci.yml (após o merge em main) ou manualmente.
+on:
+  workflow_call:
+    secrets:
+      VPS_HOST:
+        required: true
+      VPS_USER:
+        required: true
+      VPS_SSH_KEY:
+        required: true
+      VPS_PORT:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: main   # constrói a imagem a partir do que foi mesclado em main
+
+      - name: Login no GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push da imagem
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH na VPS
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd "${{ vars.DEPLOY_DIR }}"
+            # Retry: o ghcr.io as vezes da TLS handshake timeout (transitorio).
+            n=0
+            until docker compose pull; do
+              n=$((n + 1))
+              [ "$n" -ge 5 ] && { echo "docker compose pull falhou apos 5 tentativas"; exit 1; }
+              echo "pull falhou (transitorio); nova tentativa em 5s..."; sleep 5
+            done
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            # Verifica a saúde; falha o deploy se a API não responder.
+            # Janela ~45s para cobrir migrate/collectstatic + start_period.
+            curl -fsS --retry 15 --retry-all-errors --retry-delay 3 \
+              http://127.0.0.1:8000/healthz/ \
+              || { docker compose logs --tail=50; exit 1; }

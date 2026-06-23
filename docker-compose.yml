@@ -1,0 +1,23 @@
+# Compose para DESENVOLVIMENTO local.
+# Em produção, na VPS, usa-se deploy/docker-compose.prod.yaml (imagem do GHCR).
+services:
+  web:
+    build: .
+    # Em dev rodamos como root e montamos o código para refletir as edições e
+    # permitir escrever migrações/banco no host sem dor de cabeça com permissão.
+    user: root
+    # O entrypoint já roda migrate + collectstatic antes deste comando.
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      # Só em loopback: não expõe a porta de dev na rede local/externa.
+      - "127.0.0.1:8000:8000"
+    environment:
+      - DJANGO_DEBUG=1
+      - DJANGO_SECRET_KEY=dev-inseguro
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+      - DJANGO_DB_PATH=/app/data/db.sqlite3
+    env_file:
+      - path: .env
+        required: false

@@ -1,0 +1,41 @@
+# EditorConfig - estilo consistente entre editores. https://editorconfig.org
+# É a raiz: o editor para de procurar .editorconfig acima desta pasta.
+root = true
+
+# Padrão geral para todos os arquivos.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Python (código da API): 4 espaços, linha de até 100 colunas.
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# YAML (workflows do GitHub Actions, docker-compose): 2 espaços.
+[*.{yml,yaml}]
+indent_size = 2
+
+# JSON / TOML: 2 espaços.
+[*.{json,toml}]
+indent_size = 2
+
+# Shell (entrypoint, scripts): 4 espaços.
+[*.sh]
+indent_size = 4
+
+# Configs estilo ini (.env.example, pytest.ini, .coveragerc): 4 espaços.
+[*.{cfg,ini}]
+indent_size = 4
+
+# Markdown: não apara espaços à direita (dois espaços = quebra de linha forte).
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile (se houver): exige tab de verdade, não espaços.
+[Makefile]
+indent_style = tab

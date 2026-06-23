@@ -1,0 +1,12 @@
+[run]
+source = loja, config
+omit =
+    */migrations/*
+    */tests/*
+    config/wsgi.py
+    config/asgi.py
+    config/settings.py
+    manage.py
+
+[report]
+show_missing = true

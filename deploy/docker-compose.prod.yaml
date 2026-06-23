@@ -1,0 +1,29 @@
+# Compose de PRODUÇÃO. Vai para o diretório da app no servidor (ex.: <APP_DIR>).
+# Não faz build: apenas puxa a imagem publicada no GHCR pelo GitHub Actions.
+services:
+  api:
+    image: ghcr.io/thalsime/soulcroheapi:latest
+    container_name: soulcroheapi
+    restart: unless-stopped
+    pull_policy: always
+    ports:
+      # Só em loopback - quem expõe para a internet (com TLS) é o nginx do host.
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data       # banco SQLite (persistente)
+      - ./media:/app/media     # imagens enviadas no admin (servidas pelo nginx)
+    mem_limit: 512m
+    healthcheck:
+      # Python (urllib) em vez de curl: a imagem não tem mais o curl instalado.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

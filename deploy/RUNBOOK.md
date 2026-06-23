@@ -102,7 +102,7 @@ A entrega é por branch (workflows em `.github/workflows/`):
 
 ```
 push em dev -> ci.yml roda os testes
-            -> (se verde) merge fast-forward em main
+            -> (se verde) abre e mescla um PR dev -> main (promoção)
             -> chama deploy.yml (reutilizável): build -> push GHCR -> SSH no servidor
                (docker compose pull && up -d + healthcheck)
             -> cria tag/release semver
@@ -148,7 +148,12 @@ do próprio proxy.
   considere (a) restringir por IP no nginx (`location /admin/ { allow <SEU_IP>; deny all; ... }`),
   ou (b) instalar `django-axes` (bloqueia IP após N tentativas). O formulário de contato já tem
   limite de envios (throttle) configurado na própria API.
-- **Branch protection:** o `ci.yml` faz push do merge em `main` com o `GITHUB_TOKEN`. Se você
-  habilitar regras de proteção na `main` (exigir PR, restringir push), adicione o
-  `github-actions[bot]` como ator com bypass, senão o merge automático falhará com 403.
+- **Proteção de branches (rulesets):** o repositório usa dois rulesets. Na `dev`: push direto
+  bloqueado, só entra por Pull Request com o check de testes (`test`) verde; sem atores de bypass
+  (o proprietário também usa PR). Na `main`: push direto bloqueado e exige Pull Request, **sem
+  nenhum ator de bypass** - inclusive o pipeline. O pipeline promove a `dev` para a `main` abrindo
+  e mesclando um PR (mesclar um PR é a ação permitida pela regra, então dispensa bypass). Para o
+  `GITHUB_TOKEN` conseguir abrir o PR, ligue em **Settings > Actions > General** a opção "Allow
+  GitHub Actions to create and approve pull requests". Force-push e deleção ficam bloqueados nas
+  duas branches.
 

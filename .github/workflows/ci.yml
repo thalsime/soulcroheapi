@@ -43,24 +43,43 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - name: Fast-forward main para dev
+      - name: Promover dev para main (via Pull Request)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main dev
-          if ! git merge-base --is-ancestor origin/main origin/dev; then
-            echo "ERRO: origin/dev nao descende de origin/main; fast-forward impossivel."
-            echo "Solucao: rebase de dev sobre main antes do push."
-            exit 1
+          # Nada a promover se a main ja reflete o conteudo da dev.
+          if git diff --quiet origin/main origin/dev; then
+            echo "main ja reflete dev; nada a promover."
+            exit 0
           fi
-          git checkout -B main origin/main
-          git merge --ff-only origin/dev
-          git push origin main
+          # Abre o PR dev->main (ou reaproveita um aberto). Mesclar o PR e a acao
+          # sancionada pela regra de protecao da main: dispensa bypass do pipeline.
+          num=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')
+          if [ -z "$num" ]; then
+            gh pr create --base main --head dev \
+              --title "Promover dev para main" \
+              --body "Promocao automatica apos os testes passarem na dev."
+            num=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')
+          fi
+          echo "PR de promocao: #$num"
+          # Mescla (merge commit). Tenta algumas vezes ate a mesclabilidade computar.
+          for i in 1 2 3 4 5; do
+            if gh pr merge "$num" --merge; then
+              echo "PR #$num mesclado em main."
+              exit 0
+            fi
+            echo "merge ainda indisponivel; nova tentativa em 5s..."
+            sleep 5
+          done
+          echo "ERRO: nao foi possivel mesclar o PR #$num em main."
+          exit 1
 
   deploy:
     needs: merge
